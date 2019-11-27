@@ -301,9 +301,17 @@ class Member(discord.abc.Messageable, _BaseUser):
         """:class:`Status`: The member's status on the web client, if applicable."""
         return try_enum(Status, self._client_status.get('web', 'offline'))
 
+    def is_on_pc(self):
+        """A helper function that determines if a member is active on a pc."""
+        return 'desktop' in self._client_status
+    
     def is_on_mobile(self):
         """A helper function that determines if a member is active on a mobile device."""
         return 'mobile' in self._client_status
+
+    def is_on_web(self):
+        """A helper function that determines if a member is active on a web browser."""
+        return 'web' in self._client_status
 
     @property
     def colour(self):
