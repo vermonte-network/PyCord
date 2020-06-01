@@ -3,7 +3,7 @@
 """
 The MIT License (MIT)
 
-Copyright (c) 2015-2019 Rapptz
+Copyright (c) 2015-2020 Rapptz
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
@@ -31,6 +31,7 @@ from collections import namedtuple
 
 from .iterators import HistoryIterator
 from .context_managers import Typing
+from .enums import ChannelType
 from .errors import InvalidArgument, ClientException, HTTPException
 from .permissions import PermissionOverwrite, Permissions
 from .role import Role
@@ -202,9 +203,6 @@ class GuildChannel:
         bucket = self._sorting_bucket
         channels = [c for c in self.guild.channels if c._sorting_bucket == bucket]
 
-        if position >= len(channels):
-            raise InvalidArgument('Channel position cannot be greater than {}'.format(len(channels) - 1))
-
         channels.sort(key=lambda c: c.position)
 
         try:
@@ -214,8 +212,9 @@ class GuildChannel:
             # not there somehow lol
             return
         else:
+            index = next((i for i, c in enumerate(channels) if c.position >= position), -1)
             # add ourselves at our designated position
-            channels.insert(position, self)
+            channels.insert(index, self)
 
         payload = []
         for index, c in enumerate(channels):
@@ -259,6 +258,37 @@ class GuildChannel:
                 options['permission_overwrites'] = [c._asdict() for c in category._overwrites]
         else:
             await self._move(position, parent_id=parent_id, lock_permissions=lock_permissions, reason=reason)
+
+        overwrites = options.get('overwrites', None)
+        if overwrites:
+            perms = []
+            for target, perm in overwrites.items():
+                if not isinstance(perm, PermissionOverwrite):
+                    raise InvalidArgument('Expected PermissionOverwrite received {0.__name__}'.format(type(perm)))
+
+                allow, deny = perm.pair()
+                payload = {
+                    'allow': allow.value,
+                    'deny': deny.value,
+                    'id': target.id
+                }
+
+                if isinstance(target, Role):
+                    payload['type'] = 'role'
+                else:
+                    payload['type'] = 'member'
+
+                perms.append(payload)
+            options['permission_overwrites'] = perms
+
+        try:
+            ch_type = options['type']
+        except KeyError:
+            pass
+        else:
+            if not isinstance(ch_type, ChannelType):
+                raise InvalidArgument('type field must be of type ChannelType')
+            options['type'] = ch_type.value
 
         if options:
             data = await self._state.http.edit_channel(self.id, reason=reason, **options)
@@ -639,7 +669,7 @@ class GuildChannel:
         Clones this channel. This creates a channel with the same properties
         as this channel.
 
-        .. versionadded:: 1.1.0
+        .. versionadded:: 1.1
 
         Parameters
         ------------
@@ -669,7 +699,7 @@ class GuildChannel:
         Parameters
         ------------
         max_age: :class:`int`
-            How long the invite should last. If it's 0 then the invite
+            How long the invite should last in seconds. If it's 0 then the invite
             doesn't expire. Defaults to 0.
         max_uses: :class:`int`
             How many uses the invite could be used for. If it's 0 then there
@@ -748,7 +778,9 @@ class Messageable(metaclass=abc.ABCMeta):
     async def _get_channel(self):
         raise NotImplementedError
 
-    async def send(self, content=None, *, tts=False, embed=None, file=None, files=None, delete_after=None, nonce=None):
+    async def send(self, content=None, *, tts=False, embed=None, file=None,
+                                          files=None, delete_after=None, nonce=None,
+                                          allowed_mentions=None):
         """|coro|
 
         Sends a message to the destination with the content given.
@@ -784,6 +816,10 @@ class Messageable(metaclass=abc.ABCMeta):
             If provided, the number of seconds to wait in the background
             before deleting the message we just sent. If the deletion fails,
             then it is silently ignored.
+        allowed_mentions: :class:`~discord.AllowedMentions`
+            Controls the mentions being processed in this message.
+
+            .. versionadded:: 1.4
 
         Raises
         --------
@@ -807,6 +843,14 @@ class Messageable(metaclass=abc.ABCMeta):
         if embed is not None:
             embed = embed.to_dict()
 
+        if allowed_mentions is not None:
+            if state.allowed_mentions is not None:
+                allowed_mentions = state.allowed_mentions.merge(allowed_mentions).to_dict()
+            else:
+                allowed_mentions = allowed_mentions.to_dict()
+        else:
+            allowed_mentions = state.allowed_mentions and state.allowed_mentions.to_dict()
+
         if file is not None and files is not None:
             raise InvalidArgument('cannot pass both file and files parameter to send()')
 
@@ -828,12 +872,13 @@ class Messageable(metaclass=abc.ABCMeta):
 
             try:
                 data = await state.http.send_files(channel.id, files=files, content=content, tts=tts,
-                                                   embed=embed, nonce=nonce)
+                                                   embed=embed, nonce=nonce, allowed_mentions=allowed_mentions)
             finally:
                 for f in files:
                     f.close()
         else:
-            data = await state.http.send_message(channel.id, content, tts=tts, embed=embed, nonce=nonce)
+            data = await state.http.send_message(channel.id, content, tts=tts, embed=embed,
+                                                                      nonce=nonce, allowed_mentions=allowed_mentions)
 
         ret = state.create_message(channel=channel, data=data)
         if delete_after is not None:

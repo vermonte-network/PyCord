@@ -3,7 +3,7 @@
 """
 The MIT License (MIT)
 
-Copyright (c) 2015-2019 Rapptz
+Copyright (c) 2015-2020 Rapptz
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
@@ -113,7 +113,7 @@ class WidgetMember(BaseUser):
         The member's nickname.
     avatar: Optional[:class:`str`]
         The member's avatar hash.
-    activity: Optional[Union[:class:`Activity`, :class:`Game`, :class:`Streaming`, :class:`Spotify`]]
+    activity: Optional[Union[:class:`BaseActivity`, :class:`Spotify`]]
         The member's activity.
     deafened: Optional[:class:`bool`]
         Whether the member is currently deafened.
@@ -178,6 +178,14 @@ class Widget:
     members: Optional[List[:class:`Member`]]
         The online members in the server. Offline members
         do not appear in the widget.
+
+        .. note::
+
+            Due to a Discord limitation, if this data is available
+            the users will be "anonymized" with linear IDs and discriminator
+            information being incorrect. Likewise, the number of members
+            retrieved is capped.
+
     """
     __slots__ = ('_state', 'channels', '_invite', 'id', 'members', 'name')
 
@@ -196,8 +204,10 @@ class Widget:
         channels = {channel.id: channel for channel in self.channels}
         for member in data.get('members', []):
             connected_channel = _get_as_snowflake(member, 'channel_id')
-            if connected_channel:
+            if connected_channel in channels:
                 connected_channel = channels[connected_channel]
+            elif connected_channel:
+                connected_channel = WidgetChannel(id=connected_channel, name='', position=0)
 
             self.members.append(WidgetMember(state=self._state, data=member, connected_channel=connected_channel))
 
@@ -218,11 +228,11 @@ class Widget:
     @property
     def json_url(self):
         """:class:`str`: The JSON URL of the widget."""
-        return "https://discordapp.com/api/guilds/{0.id}/widget.json".format(self)
+        return "https://discord.com/api/guilds/{0.id}/widget.json".format(self)
 
     @property
     def invite_url(self):
-        """Optiona[:class:`str`]: The invite URL for the guild, if available."""
+        """Optional[:class:`str`]: The invite URL for the guild, if available."""
         return self._invite
 
     async def fetch_invite(self, *, with_counts=True):

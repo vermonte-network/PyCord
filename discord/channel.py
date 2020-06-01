@@ -3,7 +3,7 @@
 """
 The MIT License (MIT)
 
-Copyright (c) 2015-2019 Rapptz
+Copyright (c) 2015-2020 Rapptz
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
@@ -194,6 +194,12 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         You must have the :attr:`~Permissions.manage_channels` permission to
         use this.
 
+        .. versionchanged:: 1.3
+            The ``overwrites`` keyword-only parameter was added.
+
+        .. versionchanged:: 1.4
+            The ``type`` keyword-only parameter was added.
+
         Parameters
         ----------
         name: :class:`str`
@@ -213,13 +219,21 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         slowmode_delay: :class:`int`
             Specifies the slowmode rate limit for user in this channel, in seconds.
             A value of `0` disables slowmode. The maximum value possible is `21600`.
+        type: :class:`ChannelType`
+            Change the type of this text channel. Currently, only conversion between
+            :attr:`ChannelType.text` and :attr:`ChannelType.news` is supported. This 
+            is only available to guilds that contain ``NEWS`` in :attr:`Guild.features`.
         reason: Optional[:class:`str`]
             The reason for editing this channel. Shows up on the audit log.
+        overwrites: :class:`dict`
+            A :class:`dict` of target (either a role or a member) to
+            :class:`PermissionOverwrite` to apply to the channel.
 
         Raises
         ------
         InvalidArgument
-            If position is less than 0 or greater than the number of channels.
+            If position is less than 0 or greater than the number of channels, or if
+            the permission overwrite information is not in proper form.
         Forbidden
             You do not have permissions to edit the channel.
         HTTPException
@@ -266,6 +280,8 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         Forbidden
             You do not have proper permissions to delete the messages or
             you're not using a bot account.
+        NotFound
+            If single delete, then the message was already deleted.
         HTTPException
             Deleting the messages failed.
         """
@@ -423,7 +439,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
 
         Requires :attr:`~.Permissions.manage_webhooks` permissions.
 
-        .. versionchanged:: 1.1.0
+        .. versionchanged:: 1.1
             Added the ``reason`` keyword-only parameter.
 
         Parameters
@@ -466,7 +482,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
             The webhook returned will not provide a token to do webhook
             actions, as Discord does not provide it.
 
-        .. versionadded:: 1.3.0
+        .. versionadded:: 1.3
 
         Parameters
         -----------
@@ -593,7 +609,7 @@ class VoiceChannel(discord.abc.Connectable, discord.abc.GuildChannel, Hashable):
     def voice_states(self):
         """Returns a mapping of member IDs who have voice states in this channel.
 
-        .. versionadded:: 1.3.0
+        .. versionadded:: 1.3
 
         .. note::
 
@@ -636,6 +652,9 @@ class VoiceChannel(discord.abc.Connectable, discord.abc.GuildChannel, Hashable):
         You must have the :attr:`~Permissions.manage_channels` permission to
         use this.
 
+        .. versionchanged:: 1.3
+            The ``overwrites`` keyword-only parameter was added.
+
         Parameters
         ----------
         name: :class:`str`
@@ -654,9 +673,14 @@ class VoiceChannel(discord.abc.Connectable, discord.abc.GuildChannel, Hashable):
             category.
         reason: Optional[:class:`str`]
             The reason for editing this channel. Shows up on the audit log.
+        overwrites: :class:`dict`
+            A :class:`dict` of target (either a role or a member) to
+            :class:`PermissionOverwrite` to apply to the channel.
 
         Raises
         ------
+        InvalidArgument
+            If the permission overwrite information is not in proper form.
         Forbidden
             You do not have permissions to edit the channel.
         HTTPException
@@ -747,6 +771,9 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
         You must have the :attr:`~Permissions.manage_channels` permission to
         use this.
 
+        .. versionchanged:: 1.3
+            The ``overwrites`` keyword-only parameter was added.
+
         Parameters
         ----------
         name: :class:`str`
@@ -757,6 +784,9 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
             To mark the category as NSFW or not.
         reason: Optional[:class:`str`]
             The reason for editing this category. Shows up on the audit log.
+        overwrites: :class:`dict`
+            A :class:`dict` of target (either a role or a member) to
+            :class:`PermissionOverwrite` to apply to the channel.
 
         Raises
         ------
@@ -768,17 +798,7 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
             Editing the category failed.
         """
 
-        try:
-            position = options.pop('position')
-        except KeyError:
-            pass
-        else:
-            await self._move(position, reason=reason)
-            self.position = position
-
-        if options:
-            data = await self._state.http.edit_channel(self.id, reason=reason, **options)
-            self._update(self.guild, data)
+        await self._edit(options=options, reason=reason)
 
     @property
     def channels(self):
@@ -933,11 +953,17 @@ class StoreChannel(discord.abc.GuildChannel, Hashable):
             category.
         reason: Optional[:class:`str`]
             The reason for editing this channel. Shows up on the audit log.
+        overwrites: :class:`dict`
+            A :class:`dict` of target (either a role or a member) to
+            :class:`PermissionOverwrite` to apply to the channel.
+
+            .. versionadded:: 1.3
 
         Raises
         ------
         InvalidArgument
-            If position is less than 0 or greater than the number of channels.
+            If position is less than 0 or greater than the number of channels, or if
+            the permission overwrite information is not in proper form.
         Forbidden
             You do not have permissions to edit the channel.
         HTTPException

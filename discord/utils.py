@@ -3,7 +3,7 @@
 """
 The MIT License (MIT)
 
-Copyright (c) 2015-2019 Rapptz
+Copyright (c) 2015-2020 Rapptz
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
@@ -43,6 +43,7 @@ from .errors import InvalidArgument
 from .object import Object
 
 DISCORD_EPOCH = 1420070400000
+MAX_ASYNCIO_SECONDS = 3456000
 
 class cached_property:
     def __init__(self, function):
@@ -143,7 +144,7 @@ def oauth_url(client_id, permissions=None, guild=None, redirect_uri=None):
     redirect_uri: :class:`str`
         An optional valid redirect URI.
     """
-    url = 'https://discordapp.com/oauth2/authorize?client_id={}&scope=bot'.format(client_id)
+    url = 'https://discord.com/oauth2/authorize?client_id={}&scope=bot'.format(client_id)
     if permissions is not None:
         url = url + '&permissions=' + str(permissions.value)
     if guild is not None:
@@ -180,7 +181,7 @@ def find(predicate, seq):
     """A helper to return the first element found in the sequence
     that meets the predicate. For example: ::
 
-        member = find(lambda m: m.name == 'Mighty', channel.guild.members)
+        member = discord.utils.find(lambda m: m.name == 'Mighty', channel.guild.members)
 
     would find the first :class:`~discord.Member` whose name is 'Mighty' and return it.
     If an entry is not found, then ``None`` is returned.
@@ -338,6 +339,32 @@ async def sane_wait_for(futures, *, timeout):
 
     return done
 
+async def sleep_until(when, result=None):
+    """|coro|
+
+    Sleep until a specified time.
+
+    If the time supplied is in the past this function will yield instantly.
+
+    .. versionadded:: 1.3
+
+    Parameters
+    -----------
+    when: :class:`datetime.datetime`
+        The timestamp in which to sleep until. If the datetime is naive then
+        it is assumed to be in UTC.
+    result: Any
+        If provided is returned to the caller when the coroutine completes.
+    """
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    delta = (when - now).total_seconds()
+    while delta > MAX_ASYNCIO_SECONDS:
+        await asyncio.sleep(MAX_ASYNCIO_SECONDS)
+        delta -= MAX_ASYNCIO_SECONDS
+    return await asyncio.sleep(max(delta, 0), result)
+
 def valid_icon_size(size):
     """Icons must be power of 2 within [16, 4096]."""
     return not size & (size - 1) and size in range(16, 4097)
@@ -401,7 +428,7 @@ def resolve_invite(invite):
         The invite code.
     """
     from .invite import Invite  # circular import
-    if isinstance(invite, Invite) or isinstance(invite, Object):
+    if isinstance(invite, (Invite, Object)):
         return invite.id
     else:
         rx = r'(?:https?\:\/\/)?discord(?:\.gg|app\.com\/invite)\/(.+)'
