@@ -134,12 +134,12 @@ class BaseUser(_BaseUser):
 
     @property
     def public_flags(self):
-        """:class:`PublicFlags`: The publicly available flags the user has."""
+        """:class:`PublicUserFlags`: The publicly available flags the user has."""
         return PublicUserFlags._from_value(self._public_flags)
 
     @property
     def avatar_url(self):
-        """Returns an :class:`Asset` for the avatar the user has.
+        """:class:`Asset`: Returns an :class:`Asset` for the avatar the user has.
 
         If the user does not have a traditional avatar, an asset for
         the default avatar is returned instead.
@@ -303,7 +303,7 @@ class ClientUser(BaseUser):
     discriminator: :class:`str`
         The user's discriminator. This is given when the username has conflicts.
     avatar: Optional[:class:`str`]
-        The avatar hash the user has. Could be None.
+        The avatar hash the user has. Could be ``None``.
     bot: :class:`bool`
         Specifies if the user is a bot account.
     system: :class:`bool`
@@ -717,7 +717,7 @@ class User(BaseUser, discord.abc.Messageable):
 
     @property
     def relationship(self):
-        """Returns the :class:`Relationship` with this user if applicable, ``None`` otherwise.
+        """Optional[:class:`Relationship`]: Returns the :class:`Relationship` with this user if applicable, ``None`` otherwise.
 
         .. note::
 
